@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#10090f"><title>MAFIA RAWR</title>
+<style>
+:root{--bg:#10090f;--panel:#21121b;--wine:#701d37;--gold:#d7b56d;--muted:#c8b9c0;--line:#6c4a53}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at top,#3a1425,#10090f 65%);color:#f8edf0;font-family:system-ui,-apple-system,sans-serif;min-height:100vh}
+header{text-align:center;padding:26px 14px 12px}h1{margin:0;color:var(--gold);letter-spacing:3px;font-size:clamp(28px,7vw,44px);text-shadow:0 0 20px #8c2446}header p{color:var(--muted);margin:8px 0}
+main{max-width:720px;margin:auto;padding:12px}.card{border:1px solid var(--line);background:linear-gradient(145deg,#28151f,#160d14);border-radius:18px;padding:18px;margin:12px 0;box-shadow:0 12px 30px #0005}
+h2{color:var(--gold);font-size:20px;margin:0 0 12px}label{display:block;color:var(--muted);margin:10px 0 5px}input,select{width:100%;padding:13px;border-radius:10px;border:1px solid var(--line);background:#10090f;color:white;font:inherit}
+button{font:inherit;cursor:pointer;border:1px solid var(--gold);border-radius:11px;padding:12px 14px;background:linear-gradient(135deg,#7a203c,#421426);color:white;font-weight:700;width:100%;margin-top:10px}
+button.secondary{background:#21121b;border-color:var(--line)}button:disabled{opacity:.45;cursor:not-allowed}.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}.hidden{display:none!important}.notice{padding:11px;border-radius:10px;background:#120b11;color:var(--gold);margin-top:12px;white-space:pre-wrap}.pill{display:inline-block;border:1px solid var(--gold);border-radius:99px;padding:5px 12px;color:var(--gold);margin:3px}.player{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #ffffff12;padding:9px 0;gap:8px}.role{border:1px solid var(--gold);background:#160b13;text-align:center;padding:20px;border-radius:15px;margin:12px 0}.role strong{display:block;color:var(--gold);font-size:26px;margin:10px}.small{font-size:13px;color:var(--muted)}.choices button{margin-top:7px}
+</style></head>
+<body>
+<header><h1>MAFIA RAWR</h1><p>✦ لعبة المافيا — ليبدأ الليل ✦</p></header>
+<main>
+<section id="home" class="card"><h2>دخول اللعبة</h2>
+<label>اسمك داخل اللعبة</label><input id="name" maxlength="18" placeholder="اكتبي اسمك">
+<div class="row"><button id="create">إنشاء غرفة</button><button id="showJoin" class="secondary">دخول بكود</button></div>
+<div id="joinBox" class="hidden"><label>كود الغرفة</label><input id="codeInput" maxlength="6" placeholder="مثال: A7K2QX" style="text-transform:uppercase"><button id="join">دخول الغرفة</button></div>
+<div id="msg" class="notice hidden"></div></section>
+<section id="game" class="hidden">
+<div class="card"><div class="row"><div><span class="small">كود الغرفة</span><h2 id="roomCode">------</h2></div><div><span class="small">المرحلة</span><h2 id="phase">الانتظار</h2></div></div><button id="copy" class="secondary">نسخ كود الغرفة</button><div id="players"></div><div id="hostArea"></div></div>
+<div class="card"><h2>بطاقتك السرية</h2><div id="myRole" class="role">لم تبدأ اللعبة بعد</div><div id="privateAction"></div></div>
+<div class="card"><h2>الحدث الحالي</h2><div id="eventText">بانتظار اللاعبات…</div><div id="choices" class="choices"></div><div id="voteStatus" class="small"></div></div>
+<button id="leave" class="secondary">مغادرة الغرفة</button>
+</section>
+</main>
+<script>
+const API='/ .netlify/functions/game'.replace('/ ','/');let token='',code='',me='',isHost=false,state=null,timer=null,busy=false;
+const $=id=>document.getElementById(id);
+function message(t){$('msg').textContent=t;$('msg').classList.remove('hidden')}
+async function api(action,extra={}){let r=await fetch(API,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,code,token,name:me,...extra})});let d=await r.json();if(!r.ok||!d.ok)throw Error(d.error||'حدث خطأ');return d}
+$('showJoin').onclick=()=>$('joinBox').classList.toggle('hidden');
+$('create').onclick=async()=>{me=$('name').value.trim();if(!me)return message('اكتبي اسمك أولًا');try{let d=await api('create');enter(d)}catch(e){message(e.message)}};
+$('join').onclick=async()=>{me=$('name').value.trim();code=$('codeInput').value.trim().toUpperCase();if(!me||!code)return message('اكتبي الاسم والكود');try{let d=await api('join');enter(d)}catch(e){message(e.message)}};
+function enter(d){token=d.token;code=d.code;isHost=d.host;$('home').classList.add('hidden');$('game').classList.remove('hidden');$('roomCode').textContent=code;refresh();timer=setInterval(refresh,2200)}
+async function refresh(){if(!token||busy)return;try{let d=await api('state');state=d.state;isHost=d.host;render()}catch(e){$('eventText').textContent=e.message}}
+function render(){let s=state, players=s.players||[],self=players.find(p=>p.id===s.me);$('phase').textContent=({lobby:'انتظار اللاعبات',night:'الليل 🌙',day:'النهار ☀️',ended:'انتهت اللعبة'})[s.phase]||s.phase;
+$('players').innerHTML='<h2>اللاعبات ('+players.length+')</h2>'+players.map(p=>`<div class="player"><span>${esc(p.name)} ${p.id===s.host?'👑':''} ${p.alive?'':'💀'}</span><span class="small">${p.ready?'جاهزة':''}</span></div>`).join('');
+$('hostArea').innerHTML=isHost&&s.phase==='lobby'?`<label>عدد المافيا</label><select id="mafiaCount"><option value="1">1 مافيا</option><option value="2">2 مافيا</option><option value="3">3 مافيا</option></select><button id="start">بدء اللعبة (4 لاعبات على الأقل)</button>`:isHost&&s.phase!=='ended'?'<button id="advance">إنهاء المرحلة / الانتقال</button>':'';
+if($('start'))$('start').onclick=async()=>{try{await api('start',{mafiaCount:+$('mafiaCount').value});refresh()}catch(e){alert(e.message)}};
+if($('advance'))$('advance').onclick=async()=>{try{await api('advance');refresh()}catch(e){alert(e.message)}};
+let role=self?.role;$('myRole').innerHTML=role?`<span>دورك السري</span><strong>${esc(role)}</strong><span>${role==='المافيا'?'اختاري ضحية في الليل.':'حاولي اكتشاف المافيا!'}</span>`:'لم تبدأ اللعبة بعد';
+$('eventText').textContent=s.message|| (s.phase==='lobby'?'شاركي الكود مع صديقاتك وانتظري دخولهن.':s.phase==='ended'?'الفائز: '+(s.winner||'غير محدد'):'اختاري لاعبة من القائمة.');
+let eligible=players.filter(p=>p.alive&&p.id!==s.me);
+$('choices').innerHTML='';
+if(s.phase==='night'&&role==='المافيا'&&self?.alive)buildChoices(eligible,'اختيار الضحية','action');
+if(s.phase==='day'&&self?.alive)buildChoices(eligible,'تصويت للإقصاء','vote');
+$('voteStatus').textContent=s.phase==='day'?'الأصوات المسجلة: '+(s.voteCount||0):'';
+}
+function buildChoices(list,title,kind){if(!list.length)return;$('choices').innerHTML='<p>'+title+'</p>'+list.map(p=>`<button class="secondary" data-id="${p.id}">${esc(p.name)}</button>`).join('');$('choices').querySelectorAll('button').forEach(b=>b.onclick=async()=>{try{await api(kind,{target:b.dataset.id});$('eventText').textContent='تم تسجيل اختيارك بسرية.'; }catch(e){alert(e.message)}})}
+function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+$('copy').onclick=async()=>{try{await navigator.clipboard.writeText(code);alert('تم نسخ الكود')}catch{alert('كود الغرفة: '+code)}};
+$('leave').onclick=()=>{clearInterval(timer);location.reload()};
+</script></body></html>
